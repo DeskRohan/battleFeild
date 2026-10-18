@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linea Billing</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<style>
+    body { font-family: Arial; background: #f1f1f1; margin:0; padding:0; }
+    header { background: #28a745; color: white; padding:1rem; text-align:center; }
+    .container { padding:1rem; }
+    table { width:100%; border-collapse: collapse; background:white; margin-top:1rem; border-radius:8px; overflow:hidden; }
+    th, td { padding:0.5rem; border:1px solid #ddd; text-align:left; }
+    #scanner-container { width:100%; height:250px; background:#eee; margin-top:1rem; display:none; }
+    button { background:#28a745; color:white; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer; margin-top:0.5rem; }
+    button:hover { background:#218838; }
+</style>
+</head>
+<body>
+
+<header><h1>Linea Billing</h1></header>
+
+<div class="container">
+    <button id="start-scan">Scan for Billing</button>
+    <div id="scanner-container"></div>
+    <p>Scanned Code: <span id="scanned-code">None</span></p>
+
+    <h2>Bill</h2>
+    <table id="billing-table">
+        <thead><tr><th>Code</th><th>Name</th><th>Qty</th><th>Price</th></tr></thead>
+        <tbody></tbody>
+    </table>
+    <p>Total: $<span id="total-price">0</span></p>
+</div>
+
+<script>
+let inventory = JSON.parse(localStorage.getItem("inventory")) || {};
+let billingList = {};
+
+function renderBilling(){
+    let tbody = document.querySelector("#billing-table tbody");
+    let total = 0;
+    tbody.innerHTML = "";
+    for(let code in billingList){
+        let item = billingList[code];
+        let itemTotal = item.price * item.quantity;
+        total += itemTotal;
+        tbody.innerHTML += `<tr>
+            <td>${code}</td><td>${item.name}</td><td>${item.quantity}</td><td>${itemTotal}</td>
+        </tr>`;
+    }
+    document.getElementById("total-price").innerText = total;
+}
+
+document.getElementById("start-scan").addEventListener("click", () => {
+    document.getElementById("scanner-container").style.display = "block";
+
+    Quagga.init({
+        inputStream: { name: "Live", type: "LiveStream", target: document.querySelector('#scanner-container') },
+        decoder: { readers: ["code_128_reader","ean_reader","ean_8_reader","upc_reader"] }
+    }, function(err){
+        if(err){ console.error(err); return; }
+        Quagga.start();
+    });
+
+    Quagga.onceDetected(function(data){
+        let code = data.codeResult.code;
+        document.getElementById("scanned-code").innerText = code;
+        Quagga.stop();
+        document.getElementById("scanner-container").style.display = "none";
+
+        if(inventory[code]){
+            if(billingList[code]){
+                billingList[code].quantity += 1;
+            } else {
+                billingList[code] = {...inventory[code], quantity:1};
+            }
+        } else {
+            alert("Item not in inventory! Please add it first.");
+        }
+
+        renderBilling();
+    });
+});
+
+renderBilling();
+</script>
+
+</body>
+</html>
